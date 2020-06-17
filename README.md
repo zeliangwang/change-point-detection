@@ -4,7 +4,7 @@ In the context of building energy management, change point detection plays a ver
 
 *** 
 ## Result snapshots 
-![estimated-changepoint](estimated-changepoint-E_59672.svg)
+![estimated-changepoint](plots/estimated-changepoint-E_59672.svg)
 
 
 
