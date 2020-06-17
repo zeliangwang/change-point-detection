@@ -1,105 +1,82 @@
-## Change point detection in energy consumption using Bayesian inference
 
-*Zeliang Wang*
+
+<h1 align=center><font size=6>Change point detection in energy usage data using Bayesian inference</font></h1>
+
+<p style="text-align:center; font-weight:bold;">Zeliang Wang</p>
+
+
 
 ### 1. Problem definition
 
-In the context of building energy management, change point detection plays a very important role in modelling energy usage behaviour of monitored divices, and it is also a critical step in terms of developing the predictive maintenance functionality for Eniscope. We are curious to know if the energy usage patterns from a Eniscope monitored device have changed over time, either gradually or suddenly. Knowing the change points can inform (or alert) the users (clients) that something went wrong (or out of normal) in the circuit, e.g., Did the device break down or is it going to be failed anytime soon? or is it just a planned system shutdown? How can we build a model to automatically detect the change points?
+In the context of building energy management, change point detection plays a very important role in modelling energy usage behaviour of monitored devices, and it is also a critical step in terms of developing the predictive maintenance functionality for Eniscope. We are curious to know if the energy usage patterns from a [Eniscope](https://best.energy/eniscope-ems/) monitored device have changed over time, either gradually or suddenly. Knowing the change points can inform (or alert) the users (clients) that something went wrong (or out of normal) in the circuit, e.g., Did the device break down or is it going to be failed anytime soon? or is it just a planned system shutdown? How can we build a model to automatically detect the change points?
 
-To test our change point detection approach for Eniscope dataset, we have chosen Eniscope data recorded from the KFC store in Bracknell. To be more specific, the data we used here was from a Eniscope meter channel that was connected to a air conditioning unit in the store. In addition, we have chosen the period of time during which we know there already exist significant reductions of energy consumption due to the deployment of ACE2 (BEST energy conservation measures for air conditioning units). Therefore, there should exist a change point to be detected.
+To test our change point detection approach for Eniscope dataset, we have chosen Eniscope data recorded from the KFC store in Bracknell. To be more specific, the data we used here was from a Eniscope meter channel that was connected to a air conditioning unit in the store. In addition, we have chosen the period of time during which we know there already exist significant reductions of energy consumption due to the deployment of [ACE2](https://best.energy/air-conditioning-energy-saver/)(a type of energy conservation measure for air conditioning units). Therefore, there should exist a change point to be detected.
 
-By looking at the number of daily cases as shown in Fig. 1, it is very difficult to visually determine a change point, and it is even more difficult by looking at the accumulated number of cases.  
+Before we start modelling, see what you can figure out just by looking at the figure below. Would you say there was a change in energy usage during this time period? 
 
-![](plots/fig1-confirmed-cases-uk.svg)
+<img src="plots/observed-eniscope-data-E_59672.svg" style="width:1100px;" align="center">
 
-Fig. 1. Confirmed COVID-19 cases in UK. 
+Fig. 1. A chosen period of energy usage data of an air-conditioning unit from UK KFC in Bracknell, with non-working hours data removed.
 
-All the code used to produce the results in this study can be found [here](https://github.com/zeliangwang/COVID-19).
+### 2. Modelling
 
-#### Extend to Eniscope Recorded Data
-
-Potentially, Bayesian change point analysis can also be applied our Eniscope recorded data to inform the change points of energy consumption for a particular meter channel. If the energy usage of a monitored device changed in a characteristic way at some date, for example, an air conditioning unit with old, clogged filters will gradually use more energy, we would like to identify that date on which changes to the normal usage occurred by using Bayesian change point analysis. This will lead to the development of the predictive maintenance software. 
-
-
-
-### 2. Proof of concept
-
-To check if there exists a real change point (flattened curve) of the daily confirmed cases in UK, we firstly select the UK's COVID-19 data from 3rd March till 30th April, and then split the data into two parts based on a randomly chosen date, in this case, 42 days since 3rd March. We then fit linear regression models to both parts of data (See Fig. 1 for the piecewise linear regression models).
-
-![piecewise-lg-uk](plots/fig2-piecewise-lg-uk.svg)
-
-Fig. 2.  Piecewise regression model for COVID-19 cases in UK.
-
-As shown in Fig. 2, it is clear that these two linear regressions are different both in slope and intercept. This means that there exists a real change point during this period when the number of daily confirmed cases start flattening. Now the problem becomes **how we can estimate that change point using Bayesian inference**.
-
-### 3. Modelling
-
-To model the relationship between $y$, log of the number of new COVID-19 cases in UK each day, and $t$, the number of days since the "start" date, we will use a segmented regression model. The point at which we segment will be determined by a learned parameter, $\tau$. 
-
-We firstly need to find the likelihood function of data represented by a line in the form of $ y = wt + b$, where any reason for the data to deviate from a linear relation is an added offset in the $y$ direction. The error $y_i$ was drawn from a Gaussian distribution with a *zero mean* and *variance* $\sigma^2$. In this model, given an independent position of $t_i$, an uncertainty $\sigma$, a weight (or slope) $w$, a bias (or intercept) $b$, the probability density function $p$ is 
+How can we start to model this? Intuitively, a Poisson random variable could be an appropriate model, but it requires the modelled variable being non-negative integer values, such as *count* data. That being said, we can simply round the energy data into integer values, as this won't affect our results in terms of detecting the change point.  Also, the rounded data will have a maximum of $1~Wh$ deviation from its real value, which is acceptable within this context. As we are using hourly energy data, let's denote hour $i$'s energy consumption by $C_i$, and it satisfies a Poisson distribution given by
 $$
-p(y_i|t_i,\sigma,w,b) \sim N(y_i-wt_i-b,\,\sigma^2)
+C_i \sim \text{Poisson}(\lambda)\;,
 $$
-where
+where $\lambda$ is the parameter of the distribution, aka. *intensity* of the Poisson distribution. A Poisson distribution has a useful property that its expected value is equal to its parameter, i.e., $E[C_i|\lambda] = \lambda$. 
+
+We are not sure what the value of the $\lambda$ parameter really is, however. Looking at Fig. 1, it appears that the energy usage drops a lot in the later stage, which is equivalent to saying that $\lambda$ decreases at some point during the observations. How can we represent this observation mathematically? Let's assume that at some point $\tau$ during the observation period, the parameter $\lambda$ suddenly drops to a smaller value. Now we have two $\lambda$ parameters: one for the period before $\tau$, and one for the rest of the observation period such that 
 $$
-w = \left\{ \begin{array}{rcl}
-w_1 & \mbox{if}
-& \tau\leq t \\ w_2 & \mbox{if} & \tau > t
-\end{array}\right.
-\,\,\,\,,\,\,\,\,\,\,\,\,\,\,\,\,\,
-b = \left\{ \begin{array}{rcl}
-b_1 & \mbox{if}
-& \tau\leq t \\ b_2 & \mbox{if} & \tau > t
-\end{array}\right.\,\,\,\,.
+\lambda = 
+\begin{cases}
+\lambda_1  & \text{if } t \lt \tau \cr
+\lambda_2 & \text{if } t \ge \tau
+\end{cases}\;.
 $$
-Therefore, the likelihood can be expressed as
+
+
+If in reality no sudden change occurred, i.e., $\lambda_1 = \lambda_2$, then their posterior distributions should look about the same.
+
+We are interested in inferring the unknown $\lambda_1$ and $\lambda_2$. To use Bayesian inference, we need to assign prior probabilities to the different possible values of $\lambda$. What would be good prior probability distributions for $\lambda_1$ and $\lambda_2$? As $\lambda_i$ can be any positive number, the *exponential* distribution might be a good choice for modelling $\lambda_i$.
 $$
-\mathcal{L} = \prod_{i=1}^{N}p(y_i|t_i,\sigma,w,b)
+\begin{align}
+&\lambda_1 \sim \text{Exp}( \gamma ) \,, \\
+&\lambda_2 \sim \text{Exp}( \gamma )
+\end{align}
 $$
-As the amount of data available is very limited, and the growth rate of the virus is very sensitive to population dynamics of different countries, it is important to supplement the model with appropriate priors. In our case, the priors are given by 
+where $\gamma$ is the parameter of the distribution, also called the *rate* parameter. Given a specific $\gamma$, the expected value of an exponential random variable $\lambda_i$ is given by $E[\lambda_i|\gamma] = \frac{1}{\gamma}$. Our initial guess at $\gamma$ does not influence the model too strongly, so we have some flexibility in our choice.  A good rule of thumb is to set the exponential parameter $\gamma$ equal to the inverse of the average of the energy data, i.e.,
 $$
-w_1 \sim N(\mu_{w_1}, \sigma^2_{w_1})\,\,,\,\,w_2 \sim N(\mu_{w_2}, \sigma^2_{w_2})\,\,,\\
-b_1 \sim N(\mu_{b_1}, \sigma^2_{b_1})\,\,,\,\,b_2 \sim N(\mu_{b_2}, \sigma^2_{b_2})\,\,,\\
-\tau \sim Beta(\alpha, \beta)\,\,,\,\,\sigma \sim U(0, 3)\,\,
+\frac{1}{N}\sum_{i=1}^N \;C_i \approx E[\; \lambda \; |\; \gamma ] = \frac{1}{\gamma} \;\;\; \Rightarrow\;\;\; \gamma = \frac{1}{\frac{1}{N}\sum_{i=1}^NC_i} \;.
 $$
-In other words, $y$ will be modelled as $w_1t + b_1$ for days up until day $\tau$, and after that it will be modelled as $w_2t+b_2$. In this context, $w_1$ and $w_2$ can be seen as the growth rate of the virus before and after the change point $\tau$. $b_1$ and $b_2$ are the bias terms for the first and second regression respectively, and they are sensitive to country characteristics. Countries that are more exposed to COVID-19 will have more confirmed cases than those less exposed. Our initial guess of these priors are
+As to the priori of $\tau$, we might say it should be somewhere in the middle of the chosen period based on Fig. 1. However, without loss of generality, we can assign a *uniform prior belief* to every possible hour. This is equivalent to saying
 $$
-w_1 \sim N(0.5, 0.25)\,\,,\,\,w_2 \sim N(0, 0.25)\,\,,\\
-b_1 \sim N(\mu_{q_1}, 1)\,\,,\,\,b_2 \sim N(\mu_{q_4}, \dfrac{\mu_{q_4}}{4})\,\,,\\
-\tau \sim Beta(4, 3)\,\,,\,\,\sigma \sim U(0, 3)\,\,
+\tau \sim \text{DiscreteUniform(0, N-1)}\;\;\;\Rightarrow\;\;\; P( \tau = k ) = \frac{1}{N}\;,
 $$
-where $\mu_{q_1}$ and $\mu_{q_4}$ represents the mean of the first and forth quartiles of $y$. 
+where $N$ is the total number of samples of the energy data. Note that it doesn't matter how the prior distributions of the unknown parameters look like, the only thing we care about here is the posterior distributions of these parameters. 
 
-### 4. Results
+### 3. Results
 
-To compute the distribution over the parameters, we use Markov Chain Monte Carlo (MCMC) to approximate inference. Specifically, Hamiltonian Monte Carlo algorithm with No-U-Turn Sampler (NUTS) is used for sampling the posteriors. For the implementation of the model, we use a python package called [Pyro](https://pyro.ai/), a probabilistic programming language built on [PyTorch](https://pytorch.org/). 
+To compute the posterior distributions of the unknown parameters $\lambda_1, \lambda_2$ and $\tau$, we use a technique called Markov Chain Monte Carlo (MCMC) to approximate inference. This technique returns thousands of samples from the posterior distributions of the parameters, given a set of observations and prior beliefs. Specifically, Metropolis-Hastings algorithm was used to sample the posteriors. For the implementation of the model, we use the Python library called [PyMC3](https://docs.pymc.io/), a probabilistic programming language for Bayesian analysis. All the code used to produce the results in this study have been uploaded to my GitHub repository which can be accessed from [here](https://github.com/zeliangwang/change-point-detection).
 
-The posterior distributions of $w_1$, $w_2$, $b_1$, $b_2$, $\tau$ and $\sigma$ are illustrated in Fig. 3. **Clearly, the posteriors for $w_1$ and $w_2$, along with $b_1$ and $b_2$ do not overlap with each other, which proves that the change point estimated by our model is true**.
+The posterior distributions of $\lambda_1, \lambda_2$ and $\tau$ are illustrated in Fig. 3. Now we can check the uncertainty in our estimates. The wider the distribution, the less certain our posterior belief should be. Also, we can see what the plausible values for the parameters are: $\lambda_1$ is around $2455$ and $\lambda_2$ is around $338$. **Clearly, the posteriors for $\lambda_1$ and $\lambda_2$ are very distinct, which indicates that there was a change point in the energy usage behaviour of the air-conditioning unit.
 
-![posterior-dist-uk](plots/fig3-posterior-dist-uk.svg)
+<img src="plots/changepoint-posterior-E_59672.svg" style="width:800px;" align="center">
 
-Fig. 3 Posterior distributions of model parameters for COVID-19 confirmed cases in UK.
+Fig. 3 Posterior distributions of the unknown parameters $\lambda_1,\,\lambda_2$ and $\tau$.
 
-Therefore, the best estimate of the parameter $\tau$ is given $0.487$, and since we only selected $58$ days (from 3rd March to 30th April) data for the model, the change point is estimated as **1st April 2020**. 
+Our analysis also returns a distribution for $\tau$ . As it is a discrete random variable, its posterior distribution assigns the probabilities to all possible values of $\tau$. We can see that there was a $100\%$ chance that the energy usage behaviour changed at hour $42$ for this particular data set. If in reality, there is no change occurred, or the change occurred gradually over time, the posterior distribution of $\tau$ would have been more spread out, reflecting that many hours were plausible candidates for $\tau$. Therefore, the best estimate of the parameter $\tau$ is $42$, which corresponds to the date and time of *3rd November 2019, 18:00*. This change point is in accordance with the installation date of *ACE2* for the air-conditioning unit in the KFC store. 
 
-If we recall the timeline of COVID-19 in UK, on 16th March, the UK government advised everyone in the UK against "non-essential" travel and contact with each other, as well as suggesting people working from home if possible. In addition, assuming the incubation period of the virus is up to 14 days, this estimated change point does make sense as it is 15 days after widespread social distancing measures began.
+Now *what is the expected energy consumption at time* $t, \; 0 \le t \le N-1$ ? As the expected value of a Poisson variable is equal to its parameter $\lambda$. Therefore, the question is equivalent to *what is the expected value of $\lambda$ at time $t$*? Assuming $i$ represents the index of samples from posterior distributions. Given an hour $t$, we average over all possible $\lambda_i$ for that hour $t$, using  $\lambda_i = \lambda_{1,i}$ if $t<\tau_i$ (that is, if the change has not yet occurred), else we use $\lambda_i = \lambda_{2,i}$.
 
-#### Predictions
+The results, as shown in Fig. 4, demonstrate the influence of the change point. Clearly, there is no uncertainty for the expected consumption, which is something we probably like to see. Our analysis shows strong support for believing the energy usage behaviour did change, and that the change was sudden rather than gradual (as demonstrated by $\tau$'s strongly peaked posterior distribution). We can speculate what might have caused this. In fact, this is due to the installation of energy conservation measures.
 
-Based on the posterior distributions of these parameters, the predicted daily news cases on day $t_i = \{1,2,\dots,N\}$ can be formulated as 
-$$
-\mathbf{y}_i = \mathbf{w}t_i + \mathbf{b}\,\,,\,\,\,\,\,\,\,\,\, \mathbf{y}_i, \mathbf{w}\, \mathrm{and}\,\mathbf{b}\in \mathbb{R}^{M\times1}\,\,,
-$$
-where $M$ denotes the number of accepted samples after using MCMC. 
+<img src="plots/estimated-changepoint-E_59672.svg" style="width:1100px;" align="center">
 
-The left plot of Fig 4 shows the log of number of daily cases which is what we used to train the model, along with the predicted mean and $90\%$ credible interval. The dotted vertical line indicates the change point along with its $90\%$ credible interval estimated by the model. Also the right plot shows the real number of daily cases. 
+Fig. 4 Estimated change point of the energy usage behaviour for an air-conditioning unit.
 
-![change-point-uk](plots/fig4-change-point-uk.svg)
+### 4. Future work
 
-Fig. 4 Estimated change point for COVID-19 cases in UK.
-
-### References
-
-* [Wikipedia: COVID-19 pandemic in the United Kingdom](https://en.wikipedia.org/wiki/COVID-19_pandemic_in_the_United_Kingdom)
-* [Inferring change points in the spread of COVID-19 reveals the effectiveness of interventions](https://science.sciencemag.org/content/early/2020/05/14/science.abb9789)
-* [Probabilistic programming in Python: Pyro versus PyMC3](https://tomasfiers.net/posts/probabilistic-python/)
+* In this study, we use the same priors for both $\lambda$s. Alternatively, we can also have two priors: one for each $\lambda_i$. Creating two exponential distributions with different $\gamma$ values reflects our prior belief that the energy usage changed at some point during the observations.
+* We are also interested in how this model can be extended to more than a single change point. We will start extending this model by considering two change points.
+* We will also try to model the energy data with a Gamma distribution. On one hand, the Eniscope data might be more close to a Gamma distribution. On the other hand, this can avoid the step of rounding the energy data in order to fit a Poisson distribution in the current model. However, this also imposes more complexities to the model, as there are more parameters to be estimated.
