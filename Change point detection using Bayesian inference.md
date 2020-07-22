@@ -14,7 +14,7 @@ To test our change point detection approach for Eniscope dataset, we have chosen
 
 Before we start modelling, see what you can figure out just by looking at the figure below. Would you say there was a change in energy usage during this time period? 
 
-<img src="plots/observed-eniscope-data-E_59672.svg" style="width:1100px;" align="center">
+<img src="plots/observed-eniscope-data-E_59672-ACE2.svg" style="width:1100px;" align="center">
 
 Fig. 1. A chosen period of energy usage data of an air-conditioning unit from UK KFC in Bracknell, with non-working hours data removed.
 
@@ -61,7 +61,7 @@ To compute the posterior distributions of the unknown parameters $\lambda_1, \la
 
 The posterior distributions of $\lambda_1, \lambda_2$ and $\tau$ are illustrated in Fig. 3. Now we can check the uncertainty in our estimates. The wider the distribution, the less certain our posterior belief should be. Also, we can see what the plausible values for the parameters are: $\lambda_1$ is around $2455$ and $\lambda_2$ is around $338$. Clearly, the posteriors for $\lambda_1$ and $\lambda_2$ are very distinct, which indicates that there was a change point in the energy usage behaviour of the air-conditioning unit.
 
-<img src="plots/changepoint-posterior-E_59672.svg" style="width:800px;" align="center">
+<img src="plots/changepoint-posterior-E_59672-ACE2.svg" style="width:800px;" align="center">
 
 Fig. 3 Posterior distributions of the unknown parameters $\lambda_1,\,\lambda_2$ and $\tau$.
 
@@ -71,7 +71,7 @@ Now *what is the expected energy consumption at time* $t, \; 0 \le t \le N-1$ ? 
 
 The results, as shown in Fig. 4, demonstrate the influence of the change point. Clearly, there is no uncertainty for the expected consumption, which is something we probably like to see. Our analysis shows strong support for believing the energy usage behaviour did change, and that the change was sudden rather than gradual (as demonstrated by $\tau$'s strongly peaked posterior distribution). We can speculate what might have caused this. In fact, this is due to the installation of energy conservation measures.
 
-<img src="plots/estimated-changepoint-E_59672.svg" style="width:1100px;" align="center">
+<img src="plots/estimated-changepoint-E_59672-ACE2.svg" style="width:1100px;" align="center">
 
 Fig. 4 Estimated change point of the energy usage behaviour for an air-conditioning unit.
 

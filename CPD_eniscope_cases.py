@@ -447,6 +447,38 @@ plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_sampl
 
 # %%
 ###################################################################################
+# Example 1a  Air con, KFC Bracknell
+###################################################################################
+# Convert energy values to integers in order to fit Poisson distribution
+data_sel = convert2count(case_1a, remove_nwh=True, hours=[1,2,3,4,5,6,7,8])
+print(data_sel.head())
+dc_id = case_1a['dc_id']
+dc_name = case_1a['dc_name']
+store_name = case_1a['store_name']
+num_records = len(data_sel[f'E_{dc_id}_new'])
+
+# Plot the energy from the chosen data channel
+plot_bar(data_sel, dc_id, dc_name, save_fig=True,
+        fig_name = f'observed-eniscope-data-E_{dc_id}-ACE2.svg')
+
+# Using MCMC to sample the posterior distributions
+lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+                                                save_pkl=True,
+                                                fname = f'posterior-dists-E_{dc_id}-ACE2.pkl')
+
+# Plot posterior distributions
+plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+            save_fig=True,
+            fig_name = f'changepoint-posterior-E_{dc_id}-ACE2.svg')
+
+# Plot change point and expected energy consumption
+plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=3950,
+                    save_fig=True,
+                    fig_name = f'estimated-changepoint-E_{dc_id}-ACE2.svg')
+
+# %%
+###################################################################################
 # Example 1b
 ###################################################################################
 # Convert energy values to integers in order to fit Poisson distribution
