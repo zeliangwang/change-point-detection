@@ -1,10 +1,13 @@
 """Using a Bayesian model to detect the change point in Eniscope metering data.
 
 7 different examples are included:
-    2 data channels from KFC in Bracknell (before and after ACE2 installation);
-    2 data channels from KFC in Bracknell (before and after COVID-19 lockdown on 16/03/2020);
-    2 different KFC stores from Malaysia (before and after COVID-19 lockdown on 18/03/2020);
-    1 7-Eleven store in Denmark (before and after COVID-19 lockdown on 13/03/2020);
+    Exe_1a: aircon data channel from KFC in Bracknell (before and after ACE2 installation);
+    Exe_1b: main incomer data channel from KFC in Bracknell (before and after ACE2 installation);
+    Exe_2a: aircon data channel from KFC in Bracknell (before and after COVID-19 lockdown on 16/03/2020);
+    Exe_2b: main incomer data channel from KFC in Bracknell (before and after COVID-19 lockdown on 16/03/2020);
+    Exe_3a: main incomer data channel from KFC (Kota Kemuning, Malaysia) (before and after COVID-19 lockdown on 18/03/2020);
+    Exe_4a: main incomer data channel from KFC (Kelana Jaya, Malaysia) (before and after COVID-19 lockdown on 18/03/2020);
+    Exe_5a: main incomer data channel from 7-Eleven (050 - Ved Vesterport St, Denmark) (before and after COVID-19 lockdown on 13/03/2020);
 
 Assuming the energy data (in Wh) are all positive values, it can be modelled as 
 Poisson distributions.
