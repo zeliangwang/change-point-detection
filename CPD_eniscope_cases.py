@@ -419,32 +419,6 @@ case_5a = {'store_name': '7-Eleven (050 - Ved Vesterport St, Denmark)',
 #     data_h = convert2count(case)
 #     print(data_h.head())
 
-#%%
-###################################################################################
-# Example 4a
-###################################################################################
-# Convert energy values to integers in order to fit Poisson distribution
-data_sel = convert2count(case_4a, remove_nwh=True, hours=[0,1,2,3,4,5,6,7])
-print(data_sel.head())
-dc_id = case_4a['dc_id']
-dc_name = case_4a['dc_name']
-store_name = case_4a['store_name']
-num_records = len(data_sel[f'E_{dc_id}_new'])
-
-# Plot the energy from the chosen data channel
-plot_bar(data_sel, dc_id, dc_name, save_fig=True)
-
-# Using MCMC to sample the posterior distributions
-lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, save_pkl=True)
-
-# Plot posterior distributions
-plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, save_fig=True)
-
-# Plot change point and expected energy consumption
-plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-                    dc_name= dc_name, store_name= store_name, annotation_y_loc=12500,
-                    save_fig=True)
-
 # %%
 ###################################################################################
 # Example 1a  Air con, KFC Bracknell
@@ -458,23 +432,27 @@ store_name = case_1a['store_name']
 num_records = len(data_sel[f'E_{dc_id}_new'])
 
 # Plot the energy from the chosen data channel
-plot_bar(data_sel, dc_id, dc_name, save_fig=True,
+plot_bar(data_sel, dc_id, dc_name, save_fig=False,
         fig_name = f'observed-eniscope-data-E_{dc_id}-ACE2.svg')
 
 # Using MCMC to sample the posterior distributions
-lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
-                                                save_pkl=True,
-                                                fname = f'posterior-dists-E_{dc_id}-ACE2.pkl')
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False,
+#                                                 fname = f'posterior-dists-E_{dc_id}-ACE2.pkl')
+
+# Load the saved pkl file
+fname = f'posterior-dists-E_{dc_id}-ACE2.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
 
 # Plot posterior distributions
 plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-            save_fig=True,
+            save_fig=False,
             fig_name = f'changepoint-posterior-E_{dc_id}-ACE2.svg')
 
 # Plot change point and expected energy consumption
 plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
                     dc_name= dc_name, store_name= store_name, annotation_y_loc=3950,
-                    save_fig=True,
+                    save_fig=False,
                     fig_name = f'estimated-changepoint-E_{dc_id}-ACE2.svg')
 
 # %%
@@ -490,27 +468,61 @@ store_name = case_1b['store_name']
 num_records = len(data_sel[f'E_{dc_id}_new'])
 
 # Plot the energy from the chosen data channel
-plot_bar(data_sel, dc_id, dc_name, save_fig=True,
+plot_bar(data_sel, dc_id, dc_name, save_fig=False,
         fig_name = f'observed-eniscope-data-E_{dc_id}-ACE2.svg')
 
 # Using MCMC to sample the posterior distributions
-lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
-                                                save_pkl=True,
-                                                fname = f'posterior-dists-E_{dc_id}-ACE2.pkl')
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=True,
+#                                                 fname = f'posterior-dists-E_{dc_id}-ACE2.pkl')
+
+# Load the saved pkl file
+fname = f'posterior-dists-E_{dc_id}-ACE2.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
 
 # Plot posterior distributions
 plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-            save_fig=True,
+            save_fig=False,
             fig_name = f'changepoint-posterior-E_{dc_id}-ACE2.svg')
 
 # Plot change point and expected energy consumption
 plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
                     dc_name= dc_name, store_name= store_name, annotation_y_loc=90000,
-                    save_fig=True,
+                    save_fig=False,
                     fig_name = f'estimated-changepoint-E_{dc_id}-ACE2.svg')
 
 
 # %%
+###################################################################################
+# Example 2a  
+###################################################################################
+# Convert energy values to integers in order to fit Poisson distribution
+data_sel = convert2count(case_2a, remove_nwh=True, hours=[1,2,3,4,5,6,7,8])
+print(data_sel.head())
+dc_id = case_2a['dc_id']
+dc_name = case_2a['dc_name']
+store_name = case_2a['store_name']
+num_records = len(data_sel[f'E_{dc_id}_new'])
+
+# Plot the energy from the chosen data channel
+plot_bar(data_sel, dc_id, dc_name, save_fig=False)
+
+# Using MCMC to sample the posterior distributions
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False)
+fname = f'posterior-dists-E_{dc_id}.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
+
+# Plot posterior distributions
+plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+            save_fig=False)
+
+# Plot change point and expected energy consumption
+plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=1500,
+                    save_fig=False)
+
+
 # %%
 ###################################################################################
 # Example 2b  
@@ -524,20 +536,122 @@ store_name = case_2b['store_name']
 num_records = len(data_sel[f'E_{dc_id}_new'])
 
 # Plot the energy from the chosen data channel
-plot_bar(data_sel, dc_id, dc_name, save_fig=True)
+plot_bar(data_sel, dc_id, dc_name, save_fig=False)
 
 # Using MCMC to sample the posterior distributions
-lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
-                                                save_pkl=True)
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False)
+
+# Load the saved pkl file
+fname = f'posterior-dists-E_{dc_id}.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
 
 # Plot posterior distributions
 plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-            save_fig=True)
+            save_fig=False)
 
 # Plot change point and expected energy consumption
 plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
                     dc_name= dc_name, store_name= store_name, annotation_y_loc=90000,
-                    save_fig=True)
+                    save_fig=False)
+
+
+# %%
+###################################################################################
+# Example 3a  
+###################################################################################
+# Convert energy values to integers in order to fit Poisson distribution
+data_sel = convert2count(case_3a, remove_nwh=True, hours=[0,1,2,3,4,5,6,7])
+print(data_sel.head())
+dc_id = case_3a['dc_id']
+dc_name = case_3a['dc_name']
+store_name = case_3a['store_name']
+num_records = len(data_sel[f'E_{dc_id}_new'])
+
+# Plot the energy from the chosen data channel
+plot_bar(data_sel, dc_id, dc_name, save_fig=False)
+
+# Using MCMC to sample the posterior distributions
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False)
+#
+fname = f'posterior-dists-E_{dc_id}.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
+
+# Plot posterior distributions
+plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+            save_fig=False)
+
+# Plot change point and expected energy consumption
+plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
+                    save_fig=False)
+
+
+# %%
+###################################################################################
+# Example 4a  
+###################################################################################
+# Convert energy values to integers in order to fit Poisson distribution
+data_sel = convert2count(case_4a, remove_nwh=True, hours=[0,1,2,3,4,5,6,7])
+print(data_sel.head())
+dc_id = case_4a['dc_id']
+dc_name = case_4a['dc_name']
+store_name = case_4a['store_name']
+num_records = len(data_sel[f'E_{dc_id}_new'])
+
+# Plot the energy from the chosen data channel
+plot_bar(data_sel, dc_id, dc_name, save_fig=False)
+
+# Using MCMC to sample the posterior distributions
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False)
+#
+fname = f'posterior-dists-E_{dc_id}.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
+
+# Plot posterior distributions
+plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+            save_fig=False)
+
+# Plot change point and expected energy consumption
+plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=9000,
+                    save_fig=False)
+
+
+
+# %%
+###################################################################################
+# Example 5a  7-Eleven in Denmark open for 24 hours
+###################################################################################
+# Convert energy values to integers in order to fit Poisson distribution
+data_sel = convert2count(case_5a, remove_nwh=False)
+print(data_sel.head())
+dc_id = case_5a['dc_id']
+dc_name = case_5a['dc_name']
+store_name = case_5a['store_name']
+num_records = len(data_sel[f'E_{dc_id}_new'])
+
+# Plot the energy from the chosen data channel
+plot_bar(data_sel, dc_id, dc_name, save_fig=False)
+
+# Using MCMC to sample the posterior distributions
+# lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
+#                                                 save_pkl=False)
+#
+fname = f'posterior-dists-E_{dc_id}.pkl'
+[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
+
+# Plot posterior distributions
+plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+            save_fig=False)
+
+# Plot change point and expected energy consumption
+plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
+                    save_fig=False)
+
 
 
 # %%
