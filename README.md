@@ -4,8 +4,8 @@ In the context of building energy management, change point detection plays a ver
 
 *** 
 ## Result snapshots 
-![changepoint-posterior](plots/changepoint-posterior-E_59672.svg)
-![estimated-changepoint](plots/estimated-changepoint-E_59672.svg)
+![changepoint-posterior](plots/changepoint-posterior-E_59672-ACE2.svg)
+![estimated-changepoint](plots/estimated-changepoint-E_59672-ACE2.svg)
 
 
 
