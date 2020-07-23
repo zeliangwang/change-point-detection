@@ -653,7 +653,7 @@ plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_sampl
 # Plot change point and expected energy consumption
 plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
                     dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
-                    save_fig=False)
+                    save_fig=True)
 
 
 
