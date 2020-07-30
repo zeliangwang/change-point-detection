@@ -23,11 +23,12 @@ import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
 import seaborn as sns
-import scipy.stats as stats
+import scipy.stats as ss
 import pickle 
 import os
 import pymc3 as pm
 import theano.tensor as tt
+import seaborn as sns
 
 # global settings for figures
 fig_params = {'legend.fontsize': 'large',
@@ -78,6 +79,26 @@ def convert2count(metadata, **kwargs):
         df_sel = df_sel[df_sel.index.hour.isin(working_hours)]
 
     return df_sel
+
+#
+# Plot histogram for the data
+def plot_hist(df, title):    
+    sns.set(context='notebook', style='white', palette='muted', font='sans-serif', font_scale=1.2, color_codes=True)
+    
+    # Set up the matplotlib figure
+    f, axes = plt.subplots(1, 1, figsize=(6, 4))
+    f.suptitle(f'{title}',  y=1.01, fontsize=20)
+    # plot histogram 
+
+    # axes.hist(df.iloc[:,0].values, density=True, bins=12,
+    #                 alpha=0.7, color = 'blue', edgecolor = 'black')  
+    sns.distplot(df, color="m", ax=axes); 
+
+    # plt.setp(axes, yticks=[])
+    plt.tight_layout();
+    plt.show();
+
+    return f, axes
 
 #
 def plot_bar(data, dcid, dvname, **kwargs):
@@ -183,8 +204,13 @@ def detect_change_point(data, dcid, **kwargs):
 
     # MCMC sampling
     with model:
+        
+        # Inference
+        start = pm.find_MAP()  # To improve convergence, use MAP estimate (optimization) as the initial state for MCMC
         step = pm.Metropolis()  # Metropolis-Hasting 
-        trace = pm.sample(10000, tune=5000, step=step)
+        # step = pm.NUTS()  # Hamiltonian MCMC with No U-Turn Sampler
+
+        trace = pm.sample(10000, tune=5000, step=step, start=start)
 
     # samples from posterior distributions
     lambda_1_samples = trace['lambda_1']
@@ -354,9 +380,7 @@ def plot_change_point(data, dcid, lambda_1_samples, lambda_2_samples, tau_sample
     style = dict(size=16, color='black')
 
     y_loc = opts['annotation_y_loc']
-    # ax.text(45, 20500, change_time, transform=ax.transData, **style)  # KFC Kota Kemuning
-    # ax.text(33, 12500, change_time, transform=ax.transData, **style)  # KFC Kelana Jaya
-    ax.text(hour_idx+1, y_loc, change_time, transform=ax.transData, **style)  # KFC Kelana Jaya
+    ax.text(hour_idx+1, y_loc, change_time, transform=ax.transData, **style)  
 
     # Decoration
     ax.grid(which='major', linestyle=':', linewidth='0.3', color='gray')
@@ -369,6 +393,116 @@ def plot_change_point(data, dcid, lambda_1_samples, lambda_2_samples, tau_sample
 
     plt.show()
 
+
+# Plot change point 
+def plot_change_point_2(data, dcid, trace, **kwargs):
+    """Plot the detected change point and expected consumption.
+
+    Inputs:
+    -------
+        data: dataframe containing energy data
+        dcid: data channel id
+        lambda_1_samples: samples of lambda_1
+        lambda_2_samples: samples of lambda_2
+        tau_samples: samples of tau
+
+        kwargs: save_fig, set to False by default
+                fig_name
+                dc_name, data channel name
+                store_name, store name
+                annotation_y_loc, change point text location along y axis
+
+    Returns:
+    --------
+        a saved .svg file if "save_fig" is set to True
+
+    """
+    # Input options
+    opts = {'save_fig': False,  # set it True to save the figure
+            'fig_name': f'estimated-changepoint-E_{dcid}_Gamma.svg',
+            'dc_name':'',  # data channel name
+            'store_name':'',  # store name
+            'annotation_y_loc':0  # change point text location along y axis
+            } 
+
+    opts.update(kwargs)
+
+    fig_name = opts['fig_name']
+    dc_name = opts['dc_name']
+    store_name = opts['store_name']
+
+    count_data_ = data[f'E_{dcid}'].values
+    count_data = [1 if i <=0 else i for i in count_data_]
+    n_count_data = len(count_data)
+
+    # Posterior distributions
+    tau_samples =trace['tau']
+    a1_samples  =trace['a1']
+    a2_samples  =trace['a2']
+    b1_samples  =trace['b1']
+    b2_samples  =trace['b2']
+
+    mu1 = np.divide(a1_samples, b1_samples)  # mean value for gamma distribution
+    mu2 = np.divide(a2_samples, b2_samples)
+
+    fig, ax = plt.subplots(figsize=(16, 6))
+    N = tau_samples.shape[0]
+
+    expected_consumption = np.zeros(n_count_data)
+    perc_rng = np.zeros((n_count_data,2))  # credible interval
+    for day in range(0, n_count_data):
+        # ix is a bool index of all tau samples corresponding to
+        # the switchpoint occurring prior to value of 'day'
+        ix = day < tau_samples
+        expected_consumption[day] = (mu1[ix].sum()
+                                    + mu2[~ix].sum()) / N
+
+        v = np.concatenate([mu1[ix], mu2[~ix]])
+        p = 5
+        perc_rng[day,:] = np.percentile(v, [p, 100-p])  # 90% CI 
+
+    ax.plot(range(n_count_data), expected_consumption, lw=4, color="#E24A33",
+            alpha = 0.95, label="expected consumption")
+    ax.set_xlim(0, n_count_data)
+    ax.set_xlabel("Time (in hours)")
+    ax.set_ylabel("Energy [Wh]")
+    ax.set_title(f"Expected energy consumption - {dc_name}, {store_name}", y=1.02)
+    # plt.ylim(0, 60)
+
+    # 
+    ax.fill_between(range(n_count_data), 
+                    perc_rng[:,0], 
+                    perc_rng[:,1], 
+                    alpha = 0.25,
+                    label = "90% Credible Interval",
+                    color = "orange")
+
+    ax.bar(np.arange(len(count_data)), count_data, color="#348ABD", alpha=0.85,
+            label="observed consumption")
+
+    hour_idx = int(np.ceil(tau_samples.mean()))
+    change_time = data.index.strftime('%d-%b-%Y, %H:%M').tolist()[hour_idx]
+    print('\nTime of change: {}\n'.format(hour_idx))
+    ax.axvline(hour_idx, 
+            linestyle = ':', linewidth = 4,
+            label = "Time of change", 
+            color = "black")
+
+    style = dict(size=16, color='black')
+
+    y_loc = opts['annotation_y_loc']
+    ax.text(hour_idx+1, y_loc, change_time, transform=ax.transData, **style)  # KFC Kelana Jaya
+
+    # Decoration
+    ax.grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+    plt.legend(loc="upper right")
+    plt.tight_layout()
+
+    # Save the fig
+    if opts['save_fig'] == True:
+        plt.savefig(f'./plots/{fig_name}', bbox_inches='tight')
+
+    plt.show()
 
 # Case studies
 # Example 1: KFC in Bracknell (before & after ACE2 installation)
@@ -695,5 +829,74 @@ plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_sampl
                     save_fig=False)
 
 
+
+
+# %%
+
+# Use Gamma distribution for the data
+E_sel = data_sel.iloc[:, [0]]
+# plot_hist(E_sel, E_sel.columns.tolist()[0])  # plot histogram
+
+# Force all values to positive in order to fit gamma distribution
+E_sel_new = [1 if i <=0 else i for i in E_sel.iloc[:,0].values]
+
+# fit Gamma distribution to the data
+a, loc, scale = ss.gamma.fit(E_sel_new)  
+x = np.linspace(ss.gamma.ppf(0.01, a, loc=loc, scale=scale), 
+                ss.gamma.ppf(0.99, a, loc=loc, scale=scale), len(E_sel_new))
+
+f, axes = plt.subplots(1, 1, figsize=(6, 4))
+E_pdf = ss.gamma.pdf(x, a, loc=loc, scale=scale)
+# E_pdf = gamma.pdf(x, a, scale=scale)
+axes.plot(x, E_pdf,'r-', lw=2, alpha=0.8, label='Gamma pdf')
+
+axes.hist(E_sel_new, density=True, bins=12,
+                alpha=0.5, color = 'blue', edgecolor = 'black')      
+# %%
+with pm.Model() as model_gamma:
+
+    # Prior distributions
+    a1 = pm.Exponential('a1', 1/a)  # shape parameter of Gammar distribution
+    a2 = pm.Exponential('a2', 1/a) 
+    b1 = pm.Exponential('b1', scale)  # rate parameter of Gamma distribution
+    b2 = pm.Exponential('b2', scale)  
+
+    tau = pm.DiscreteUniform("tau", lower=0, upper=len(E_sel_new) - 1)
+
+with model_gamma:
+    idx = np.arange(len(E_sel_new)) # Index
+    a_ = pm.math.switch(tau > idx, a1, a2)
+    b_ = pm.math.switch(tau > idx, b1, b2)
+
+    # likelihood function
+    observation = pm.Gamma("obs", alpha=a_, beta=b_, observed=E_sel_new)
+
+# MCMC sampling
+with model_gamma:
+    # Inference
+    start = pm.find_MAP()  # To improve convergence, use MAP estimate (optimization) as the initial state for MCMC
+    # step = pm.Metropolis()  # Metropolis-Hasting 
+    step = pm.NUTS()  # Hamiltonian MCMC with No U-Turn Sampler
+
+    trace_gamma = pm.sample(10000, tune=15000, start=start, step=step, chains=2)
+
+pm.traceplot(trace_gamma);
+# %%
+
+fname = 'model_gamma.pkl'
+
+# # save posterior distributions
+# with open(os.path.join('data', fname), 'wb') as f:
+#     pickle.dump([model_gamma,trace_gamma], f)
+
+[model_, trace_gamma] = pickle.load(open(os.path.join('data', fname), "rb"))
+
+pm.traceplot(trace_gamma);
+
+#%%
+
+plot_change_point_2(data_sel, dc_id, trace_gamma, 
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=21000,
+                    save_fig=False)
 
 # %%
