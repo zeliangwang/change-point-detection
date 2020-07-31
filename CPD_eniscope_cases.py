@@ -907,6 +907,6 @@ pm.traceplot(trace_gamma);
 
 plot_change_point_2(data_sel, dc_id, trace_gamma, 
                     dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
-                    save_fig=True)
+                    save_fig=False)
 
 # %%
