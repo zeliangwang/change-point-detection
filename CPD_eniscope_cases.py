@@ -393,18 +393,15 @@ def plot_change_point(data, dcid, lambda_1_samples, lambda_2_samples, tau_sample
 
     plt.show()
 
-
 # Plot change point 
-def plot_change_point_2(data, dcid, trace, **kwargs):
+def plot_changepoint(data, dcid, trace, **kwargs):
     """Plot the detected change point and expected consumption.
 
     Inputs:
     -------
         data: dataframe containing energy data
         dcid: data channel id
-        lambda_1_samples: samples of lambda_1
-        lambda_2_samples: samples of lambda_2
-        tau_samples: samples of tau
+        trace: PYMC3 trace object
 
         kwargs: save_fig, set to False by default
                 fig_name
@@ -431,27 +428,28 @@ def plot_change_point_2(data, dcid, trace, **kwargs):
     dc_name = opts['dc_name']
     store_name = opts['store_name']
 
-    count_data_ = data[f'E_{dcid}'].values
-    count_data = [1 if i <=0 else i for i in count_data_]
-    n_count_data = len(count_data)
+    # Enforce data to be positive to fit Gamma distribution
+    obs_data_ = data[f'E_{dcid}'].values
+    obs_data = [0.001 if i <=0 else i for i in obs_data_]  
+    num_records = len(obs_data)
 
-    # Posterior distributions
-    tau_samples =trace['tau']
-    a1_samples  =trace['a1']
-    a2_samples  =trace['a2']
-    b1_samples  =trace['b1']
-    b2_samples  =trace['b2']
-
-    mu1 = np.divide(a1_samples, b1_samples)  # mean value for gamma distribution
-    mu2 = np.divide(a2_samples, b2_samples)
-
-    fig, ax = plt.subplots(figsize=(16, 6))
+    # Assign posterior distributions from PyMC3 trace object
+    tau_samples =trace['tau']  # changepoint
+    a1_samples  =trace['a1']  # Gamma shape parameter before changepoint
+    a2_samples  =trace['a2']  # Gamma shape parameter after changepoint
+    b1_samples  =trace['b1']  # Gamma rate parameter before changepoint
+    b2_samples  =trace['b2']  # Gamma rate parameter after changepoint
     N = tau_samples.shape[0]
 
-    expected_consumption = np.zeros(n_count_data)
-    perc_rng = np.zeros((n_count_data,2))  # credible interval
-    p = 5
-    for day in range(0, n_count_data):
+    # Calculate mean for Gamma distribution
+    mu1 = np.divide(a1_samples, b1_samples)  # mean before the changepoint
+    mu2 = np.divide(a2_samples, b2_samples)  # mean after the changepoint
+    
+    # Calculate expected consumptions
+    expected_consumption = np.zeros(num_records)
+    perc_rng = np.zeros((num_records,2))  # credible interval
+    p = 5  # lower bound of percentile range
+    for day in range(0, num_records):
         # ix is a bool index of all tau samples corresponding to
         # the switchpoint occurring prior to value of 'day'
         ix = day < tau_samples
@@ -461,50 +459,59 @@ def plot_change_point_2(data, dcid, trace, **kwargs):
         v = np.concatenate([mu1[ix], mu2[~ix]])    
         perc_rng[day,:] = np.percentile(v, [p, 100-p])  # 90% CI 
 
-    ax.plot(range(n_count_data), expected_consumption, lw=4, color="#E24A33",
-            alpha = 0.95, label="expected consumption")
-    ax.set_xlim(0, n_count_data)
-    ax.set_xlabel("Time (in hours)")
-    ax.set_ylabel("Energy [Wh]")
-    ax.set_title(f"Expected energy consumption - {dc_name}, {store_name}", y=1.02)
-    # plt.ylim(0, 60)
+    # Plot
+    fig, ax = plt.subplots(figsize=(16, 6))
 
-    # 
-    ax.fill_between(range(n_count_data), 
+    # Observed data
+    ax.bar(np.arange(len(obs_data)), obs_data, color="#348ABD", alpha=0.85, zorder=0,
+            label="observed consumption")
+
+    # Expected value
+    ax.plot(range(num_records), expected_consumption, lw=4, color="#E24A33", zorder=5,
+            alpha = 0.95, label="expected consumption")
+
+    # Mean of changepoint samples
+    hour_idx = int(np.ceil(tau_samples.mean()))  # rounded to the ceil integer
+    print('\nTime of change: {}\n'.format(hour_idx))
+    ax.axvline(hour_idx, 
+            linestyle = ':', linewidth = 4,
+            label = "Time of change", 
+            zorder=10,
+            color = "black")
+
+    # CI for expected values
+    ax.fill_between(range(num_records), 
                     perc_rng[:,0], 
                     perc_rng[:,1], 
                     alpha = 0.25,
                     label = "90% Credible Interval",
+                    zorder=15,
                     color = "orange")
 
-    ax.bar(np.arange(len(count_data)), count_data, color="#348ABD", alpha=0.85,
-            label="observed consumption")
-
-    hour_idx = int(np.ceil(tau_samples.mean()))
-    change_time = data.index.strftime('%d-%b-%Y, %H:%M').tolist()[hour_idx]
-    print('\nTime of change: {}\n'.format(hour_idx))
-    #
+    # CI for changepoint
     tau_ = np.percentile(tau_samples, [p, 100-p])  # 90% CI for tau
     ax.fill_betweenx([0, 1], 
-                    np.floor(tau_[0]), 
-                    np.ceil(tau_[1]), 
+                    np.floor(tau_[0]), # 5th percentile
+                    np.ceil(tau_[1]),  # 95th percentile
                     alpha = 0.25,
                     label = "90% Credible Interval \n for tau",
-                    color = "teal",
+                    zorder=20,
+                    color = "green",
                     transform=ax.get_xaxis_transform())
 
-    ax.axvline(hour_idx, 
-            linestyle = ':', linewidth = 4,
-            label = "Time of change", 
-            color = "black")
-
-    style = dict(size=16, color='black')
-
-    y_loc = opts['annotation_y_loc']
-    ax.text(hour_idx+1, y_loc, change_time, transform=ax.transData, **style)  # KFC Kelana Jaya
-
     # Decoration
+    style = dict(size=16, color='black')
+    y_loc = opts['annotation_y_loc']
+    change_time = data.index.strftime('%d-%b-%Y, %H:%M').tolist()[hour_idx]  # convert index to readable datetime
+    ax.text(hour_idx+2, y_loc, change_time, transform=ax.transData, **style)  # annotation text
+
+    ax.set_xlim(0, num_records)
+    ax.set_xlabel("Time (in hours)")
+    ax.set_ylabel("Energy [Wh]")
+    ax.set_title(f"Expected energy consumption - {dc_name}, {store_name}", y=1.02)
+    # plt.ylim(0, 60)
     ax.grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
     plt.legend(loc="upper right")
     plt.tight_layout()
 
@@ -905,8 +912,8 @@ pm.traceplot(trace_gamma);
 
 #%%
 
-plot_change_point_2(data_sel, dc_id, trace_gamma, 
-                    dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
-                    save_fig=False)
+plot_changepoint(data_sel, dc_id, trace_gamma, 
+                dc_name= dc_name, store_name= store_name, annotation_y_loc=14000,
+                save_fig=False)
 
 # %%
