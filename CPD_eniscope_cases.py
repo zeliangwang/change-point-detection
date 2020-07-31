@@ -450,6 +450,7 @@ def plot_change_point_2(data, dcid, trace, **kwargs):
 
     expected_consumption = np.zeros(n_count_data)
     perc_rng = np.zeros((n_count_data,2))  # credible interval
+    p = 5
     for day in range(0, n_count_data):
         # ix is a bool index of all tau samples corresponding to
         # the switchpoint occurring prior to value of 'day'
@@ -457,8 +458,7 @@ def plot_change_point_2(data, dcid, trace, **kwargs):
         expected_consumption[day] = (mu1[ix].sum()
                                     + mu2[~ix].sum()) / N
 
-        v = np.concatenate([mu1[ix], mu2[~ix]])
-        p = 5
+        v = np.concatenate([mu1[ix], mu2[~ix]])    
         perc_rng[day,:] = np.percentile(v, [p, 100-p])  # 90% CI 
 
     ax.plot(range(n_count_data), expected_consumption, lw=4, color="#E24A33",
@@ -483,6 +483,16 @@ def plot_change_point_2(data, dcid, trace, **kwargs):
     hour_idx = int(np.ceil(tau_samples.mean()))
     change_time = data.index.strftime('%d-%b-%Y, %H:%M').tolist()[hour_idx]
     print('\nTime of change: {}\n'.format(hour_idx))
+    #
+    tau_ = np.percentile(tau_samples, [p, 100-p])  # 90% CI for tau
+    ax.fill_betweenx([0, 1], 
+                    np.floor(tau_[0]), 
+                    np.ceil(tau_[1]), 
+                    alpha = 0.25,
+                    label = "90% Credible Interval \n for tau",
+                    color = "teal",
+                    transform=ax.get_xaxis_transform())
+
     ax.axvline(hour_idx, 
             linestyle = ':', linewidth = 4,
             label = "Time of change", 
@@ -835,23 +845,23 @@ plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_sampl
 
 # Use Gamma distribution for the data
 E_sel = data_sel.iloc[:, [0]]
-# plot_hist(E_sel, E_sel.columns.tolist()[0])  # plot histogram
+plot_hist(E_sel, E_sel.columns.tolist()[0])  # plot histogram
 
 # Force all values to positive in order to fit gamma distribution
 E_sel_new = [1 if i <=0 else i for i in E_sel.iloc[:,0].values]
 
 # fit Gamma distribution to the data
 a, loc, scale = ss.gamma.fit(E_sel_new)  
-x = np.linspace(ss.gamma.ppf(0.01, a, loc=loc, scale=scale), 
-                ss.gamma.ppf(0.99, a, loc=loc, scale=scale), len(E_sel_new))
+x = np.linspace(ss.gamma.ppf(0.001, a, loc=loc, scale=scale), 
+                ss.gamma.ppf(0.999, a, loc=loc, scale=scale), len(E_sel_new))
 
 f, axes = plt.subplots(1, 1, figsize=(6, 4))
 E_pdf = ss.gamma.pdf(x, a, loc=loc, scale=scale)
-# E_pdf = gamma.pdf(x, a, scale=scale)
+# # E_pdf = ss.gamma.pdf(x, a, scale=scale)
 axes.plot(x, E_pdf,'r-', lw=2, alpha=0.8, label='Gamma pdf')
 
-axes.hist(E_sel_new, density=True, bins=12,
-                alpha=0.5, color = 'blue', edgecolor = 'black')      
+axes.hist(E_sel_new, density=True,
+                alpha=0.5, color = 'blue', edgecolor = 'black');     
 # %%
 with pm.Model() as model_gamma:
 
@@ -896,7 +906,7 @@ pm.traceplot(trace_gamma);
 #%%
 
 plot_change_point_2(data_sel, dc_id, trace_gamma, 
-                    dc_name= dc_name, store_name= store_name, annotation_y_loc=21000,
-                    save_fig=False)
+                    dc_name= dc_name, store_name= store_name, annotation_y_loc=18000,
+                    save_fig=True)
 
 # %%
