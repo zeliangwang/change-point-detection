@@ -155,7 +155,7 @@ def plot_bar(data, dcid, dvname, **kwargs):
 
     plt.show()
 
-#
+#  TODO Obselete function
 def detect_change_point(data, dcid, **kwargs):
     """Plot the energy data as barchart from the selected data channel.
 
@@ -330,16 +330,14 @@ def detect_changepoint(data, dcid, **kwargs):
     return trace
 
 #
-def plot_posterior(n_count_data, dcid, lambda_1_samples, lambda_2_samples, tau_samples, **kwargs):
+def plot_posterior(num_records, dcid, trace, **kwargs):
     """Plot the posterior distributions for the estimated parameters.
 
     Inputs:
     -------
-        n_count_data: number of energy data samples
+        num_records: number of data records
         dcid: data channel id
-        lambda_1_samples: samples of lambda_1
-        lambda_2_samples: samples of lambda_2
-        tau_samples: samples of tau
+        trace: PYMC3 trace object
 
         kwargs: save_fig, set to False by default
                 fig_name
@@ -352,51 +350,198 @@ def plot_posterior(n_count_data, dcid, lambda_1_samples, lambda_2_samples, tau_s
 
     # input options
     opts = {'save_fig': False,
-            'fig_name': f'changepoint-posterior-E_{dcid}.svg'
+            'model': 'Poisson',  # distribution of the observed data, 'Poisson' by default
             }
     opts.update(kwargs)
 
-    fig_name = opts['fig_name']
+    if opts['model'] == 'Poisson':
+        fig_name = f'changepoint-posterior-E_{dcid}-Poisson.svg'
 
-    fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(12, 8))
+        fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(12, 8))
 
-    ax[0].hist(lambda_1_samples, histtype='stepfilled', bins=30, alpha=0.85,
-                label="posterior of $\lambda_1$", color="#A60628", density=True)
-    ax[0].legend(loc="upper left")
-    # ax[0].set_title(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""")
-    # ax[0].set_xlim(320,2500)
-    ax[0].set_xlabel("$\lambda_1$ value", labelpad=8)
-    ax[0].set_ylabel("Density", labelpad=8);
-    ax[0].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+        # samples from posterior distributions
+        lambda_1_samples = trace['lambda_1']
+        lambda_2_samples = trace['lambda_2']
+        tau_samples = trace['tau']
 
-    #
-    ax[1].hist(lambda_2_samples, histtype='stepfilled', bins=30, alpha=0.85,
-                label="posterior of $\lambda_2$", color="#7A68A6", density=True)
-    ax[1].legend(loc="upper left")
-    ax[1].set_xlabel("$\lambda_2$ value", labelpad=8)
-    ax[1].set_ylabel("Density", labelpad=8);
-    ax[1].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+        ax[0].hist(lambda_1_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $\lambda_1$", color="#A60628", density=True)
+        ax[0].legend(loc="upper left")
+        # ax[0].set_title(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""")
+        # ax[0].set_xlim(320,2500)
+        ax[0].set_xlabel("$\lambda_1$ value", labelpad=8)
+        ax[0].set_ylabel("Density", labelpad=8);
+        ax[0].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
 
-    #
-    w = 1.0 / tau_samples.shape[0] * np.ones_like(tau_samples)  # weights
-    ax[2].hist(tau_samples, bins=n_count_data, alpha=1,
-                label=r"posterior of $\tau$",
-                color="#467821", edgecolor= "#467821", weights=w, linewidth='2', rwidth=0)
-    ax[2].set_xlabel(r"$\tau$ (in hours)", labelpad=8)
-    ax[2].set_ylabel("Probability", labelpad=8)
-    ax[2].set_xlim([25, n_count_data-35])
-    ax[2].legend(loc="upper left")
-    ax[2].set_xticks(np.arange(n_count_data)[::6])
-    ax[2].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+        #
+        ax[1].hist(lambda_2_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $\lambda_2$", color="#7A68A6", density=True)
+        ax[1].legend(loc="upper left")
+        ax[1].set_xlabel("$\lambda_2$ value", labelpad=8)
+        ax[1].set_ylabel("Density", labelpad=8);
+        ax[1].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
 
-    #
-    fig.suptitle(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""", fontsize=20, y=1.02)
-    plt.tight_layout()
+        #
+        w = 1.0 / tau_samples.shape[0] * np.ones_like(tau_samples)  # weights
+        ax[2].hist(tau_samples, bins=num_records, alpha=1,
+                    label=r"posterior of $\tau$",
+                    color="#467821", edgecolor= "#467821", weights=w, linewidth='2', rwidth=0)
+        ax[2].set_xlabel(r"$\tau$ (in hours)", labelpad=8)
+        ax[2].set_ylabel("Probability", labelpad=8)
+        # ax[2].set_xlim([25, num_records-35])
+        ax[2].legend(loc="upper left")
+        ax[2].set_xticks(np.arange(num_records)[::6])
+        ax[2].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        fig.suptitle(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""", fontsize=20, y=1.02)
+        plt.tight_layout()
+
+    elif opts['model'] == 'Gamma':
+        fig_name = f'changepoint-posterior-E_{dcid}-Gamma.svg'
+
+        fig, ax = plt.subplots(nrows=3, ncols=2, figsize=(16, 9))
+        ax_1D = ax.ravel()
+
+        # samples from posterior distributions
+        tau_samples =trace['tau']  # changepoint
+        a1_samples  =trace['a1']  # Gamma shape parameter before changepoint
+        a2_samples  =trace['a2']  # Gamma shape parameter after changepoint
+        b1_samples  =trace['b1']  # Gamma rate parameter before changepoint
+        b2_samples  =trace['b2']  # Gamma rate parameter after changepoint
+
+        # 
+        ax_1D[0].hist(a1_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $a_1$", color="#A60628", density=True)
+        ax_1D[0].legend(loc="upper left")
+        ax_1D[0].set_xlabel("$a_1$ value", labelpad=8)
+        ax_1D[0].set_ylabel("Density", labelpad=8);
+        ax_1D[0].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        ax_1D[1].hist(a2_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $a_2$", color="#A60628", density=True)
+        ax_1D[1].legend(loc="upper left")
+        ax_1D[1].set_xlabel("$a_2$ value", labelpad=8)
+        ax_1D[1].set_ylabel("Density", labelpad=8);
+        ax_1D[1].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        ax_1D[2].hist(b1_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $b_1$", color="#7A68A6", density=True)
+        ax_1D[2].legend(loc="upper left")
+        ax_1D[2].set_xlabel("$b_1$ value", labelpad=8)
+        ax_1D[2].set_ylabel("Density", labelpad=8);
+        ax_1D[2].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        ax_1D[3].hist(b2_samples, histtype='stepfilled', bins=30, alpha=0.85,
+                    label="posterior of $b_2$", color="#7A68A6", density=True)
+        ax_1D[3].legend(loc="upper left")
+        ax_1D[3].set_xlabel("$b_2$ value", labelpad=8)
+        ax_1D[3].set_ylabel("Density", labelpad=8);
+        ax_1D[3].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        w = 1.0 / tau_samples.shape[0] * np.ones_like(tau_samples)  # weights
+        ax_1D[4].hist(tau_samples, bins=num_records, alpha=1,
+                    label=r"posterior of $\tau$", color="#467821", 
+                    edgecolor= "#467821", weights=w, linewidth='2', rwidth=0)
+        ax_1D[4].set_xlabel(r"$\tau$ (in hours)", labelpad=8)
+        ax_1D[4].set_ylabel("Probability", labelpad=8)
+        # ax_1D[4].set_xlim(15, num_records-35)
+        ax_1D[4].legend(loc="upper left")
+        ax_1D[4].set_xticks(np.arange(num_records)[::6])
+        ax_1D[4].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+        #
+        ax_1D[-1].axis('off')
+
+        #
+        fig.suptitle(r"""Posterior distributions of the variables $a_1,\;a_2,\;b_1,\;b_2,\;\tau$""", 
+                    fontsize=20, y=1.03)
+        plt.tight_layout()
+
+    else:
+        pass
 
     # Save the fig
     if opts['save_fig'] == True:
         plt.savefig(f'./plots/{fig_name}', bbox_inches='tight')
+        
     plt.show()
+
+
+
+
+# TODO Obsolete function 
+# def plot_posterior_old(n_count_data, dcid, lambda_1_samples, lambda_2_samples, tau_samples, **kwargs):
+#     """Plot the posterior distributions for the estimated parameters.
+
+#     Inputs:
+#     -------
+#         n_count_data: number of energy data samples
+#         dcid: data channel id
+#         lambda_1_samples: samples of lambda_1
+#         lambda_2_samples: samples of lambda_2
+#         tau_samples: samples of tau
+
+#         kwargs: save_fig, set to False by default
+#                 fig_name
+
+#     Returns:
+#     --------
+#         a saved .svg file if "save_fig" is set to True
+
+#     """
+
+#     # input options
+#     opts = {'save_fig': False,
+#             'fig_name': f'changepoint-posterior-E_{dcid}.svg'
+#             }
+#     opts.update(kwargs)
+
+#     fig_name = opts['fig_name']
+
+#     fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(12, 8))
+
+#     ax[0].hist(lambda_1_samples, histtype='stepfilled', bins=30, alpha=0.85,
+#                 label="posterior of $\lambda_1$", color="#A60628", density=True)
+#     ax[0].legend(loc="upper left")
+#     # ax[0].set_title(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""")
+#     # ax[0].set_xlim(320,2500)
+#     ax[0].set_xlabel("$\lambda_1$ value", labelpad=8)
+#     ax[0].set_ylabel("Density", labelpad=8);
+#     ax[0].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+#     #
+#     ax[1].hist(lambda_2_samples, histtype='stepfilled', bins=30, alpha=0.85,
+#                 label="posterior of $\lambda_2$", color="#7A68A6", density=True)
+#     ax[1].legend(loc="upper left")
+#     ax[1].set_xlabel("$\lambda_2$ value", labelpad=8)
+#     ax[1].set_ylabel("Density", labelpad=8);
+#     ax[1].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+#     #
+#     w = 1.0 / tau_samples.shape[0] * np.ones_like(tau_samples)  # weights
+#     ax[2].hist(tau_samples, bins=n_count_data, alpha=1,
+#                 label=r"posterior of $\tau$",
+#                 color="#467821", edgecolor= "#467821", weights=w, linewidth='2', rwidth=0)
+#     ax[2].set_xlabel(r"$\tau$ (in hours)", labelpad=8)
+#     ax[2].set_ylabel("Probability", labelpad=8)
+#     ax[2].set_xlim([25, n_count_data-35])
+#     ax[2].legend(loc="upper left")
+#     ax[2].set_xticks(np.arange(n_count_data)[::6])
+#     ax[2].grid(which='major', linestyle=':', linewidth='0.3', color='gray')
+
+#     #
+#     fig.suptitle(r"""Posterior distributions of the variables $\lambda_1,\;\lambda_2,\;\tau$""", fontsize=20, y=1.02)
+#     plt.tight_layout()
+
+#     # Save the fig
+#     if opts['save_fig'] == True:
+#         plt.savefig(f'./plots/{fig_name}', bbox_inches='tight')
+#     plt.show()
 
 
 # Plot change point 
@@ -893,6 +1038,8 @@ pm.traceplot(trace);
 #                     dc_name= dc_name, store_name= store_name, annotation_y_loc=9000,
 #                     save_fig=False)
 
+#%%
+plot_posterior(num_records, dc_id, trace, model='Gamma', save_fig=False)
 
 
 # %%
