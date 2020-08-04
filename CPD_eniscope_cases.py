@@ -225,6 +225,111 @@ def detect_change_point(data, dcid, **kwargs):
     return lambda_1_samples, lambda_2_samples, tau_samples
 
 #
+def detect_changepoint(data, dcid, **kwargs):
+    """Detect the changepoint for the energy data using MCMC.
+
+    Inputs:
+    -------
+        data: dataframe containing energy data
+        dcid: data channel id
+        kwargs: key words arguments
+            save_pkl: Boolean, save_pkl is set to False by default
+            fname: str, pkl file name
+            draw: int, number of samples to draw for MCMC sampling
+            tune: int, number of burnin samples
+            model: str, choose either 'Poisson' or 'Gamma' as the data's distribution,
+                    it is set to be 'Poisson' by default
+            sampler:, str, choose MCMC sampling algorithm, 'Metropolis' by default
+            chains: int, number of chains to run MCMC
+            cores: int, number of chains to run in parallel. If None, set to the number of CPUs in the system, but at most 4.
+            seed: int, random seed value, 123 by default
+    Returns:
+    --------
+
+    """
+    # input options
+    opts = {'save_pkl': False,
+            'fname': f'posterior-dists-E_{dcid}.pkl',
+            'draw': 10000,  # number of samples to draws
+            'tune': 5000,  # number of burnin samples
+            'model': 'Poisson',  # default distribution for observed data
+            'sampler': 'Metropolis',  # default MCMC sampler
+            'chains': 3,  # number of MCMC chains
+            'cores': None,
+            'seed': 123
+            }
+    opts.update(kwargs)
+
+    fname = opts['fname']
+
+    if opts['model'] == 'Poisson':
+        obs_data = data[f'E_{dcid}_new'].values
+    elif opts['model'] == 'Gamma':
+        obs_data_ = data[f'E_{dcid}'].values
+        # Enforce data to be positive to fit Gamma distribution
+        obs_data = [0.001 if i <=0 else i for i in obs_data_]
+    else:
+        pass
+    num_records = len(obs_data)
+
+    np.random.seed(opts['seed'])   # set random seed
+    
+    # Define a Bayesian model using PyMC3
+    with pm.Model() as model:
+        if opts['model'] == 'Poisson':
+            # initial parameter value for Exp distribution
+            alpha = 1.0/obs_data.mean() 
+
+            # Prior
+            lambda_1 = pm.Exponential("lambda_1", alpha)
+            lambda_2 = pm.Exponential("lambda_2", alpha)
+            tau = pm.DiscreteUniform("tau", lower=0, upper=num_records - 1)
+            # Likelihood
+            idx = np.arange(num_records) # Index
+            lambda_ = pm.math.switch(tau > idx, lambda_1, lambda_2)
+            observation = pm.Poisson("obs", lambda_, observed=obs_data)
+
+        elif opts['model'] == 'Gamma':
+            # Fit Gamma distribution to the data to find initial vals for proposal distribution
+            a, loc, scale = ss.gamma.fit(obs_data)
+
+            # Prior
+            a1 = pm.Exponential('a1', 1/a)  # shape parameter of Gammar distribution
+            a2 = pm.Exponential('a2', 1/a) 
+            b1 = pm.Exponential('b1', scale)  # rate parameter of Gamma distribution
+            b2 = pm.Exponential('b2', scale)  
+            tau = pm.DiscreteUniform("tau", lower=0, upper=num_records - 1)
+
+            # Likelihood
+            idx = np.arange(num_records) # Index
+            a_ = pm.math.switch(tau > idx, a1, a2)
+            b_ = pm.math.switch(tau > idx, b1, b2)
+
+            observation = pm.Gamma("obs", alpha=a_, beta=b_, observed=obs_data)
+
+        else:
+            pass
+
+    # Inference using MCMC sampling
+    with model:
+        start = pm.find_MAP()  # To improve convergence, use MAP estimate (optimization) as the initial state for MCMC
+        if opts['sampler'] == 'Metropolis':
+            step = pm.Metropolis()  # Metropolis-Hasting 
+        elif opts['sampler'] == 'NUTS':
+            step = pm.NUTS()  # Hamiltonian MCMC with No U-Turn Sampler
+        else:
+            pass
+        trace = pm.sample(draws=opts['draw'], tune=opts['tune'], step=step, start=start,
+                        random_seed=opts['seed'], progressbar=True, chains=opts['chains'], cores=opts['cores'])
+
+    # save posterior distributions
+    if opts['save_pkl'] == True:
+        with open(os.path.join('data', fname), 'wb') as f:
+            pickle.dump([model, trace], f)
+
+    return trace
+
+#
 def plot_posterior(n_count_data, dcid, lambda_1_samples, lambda_2_samples, tau_samples, **kwargs):
     """Plot the posterior distributions for the estimated parameters.
 
@@ -767,18 +872,26 @@ plot_bar(data_sel, dc_id, dc_name, save_fig=False)
 # Using MCMC to sample the posterior distributions
 # lambda_1_samples, lambda_2_samples, tau_samples = detect_change_point(data_sel, dc_id, 
 #                                                 save_pkl=False)
+
+# trace = detect_changepoint(data_sel, dc_id, draw=10000, tune=5000, model='Poisson',
+#                             sampler='NUTS', chains=3, seed=123, save_pkl=False)
+
+trace = detect_changepoint(data_sel, dc_id, draw=10000, tune=15000, model='Gamma',
+                            sampler='NUTS', chains=2, seed=123, save_pkl=False)
+pm.traceplot(trace);
+
 #
-fname = f'posterior-dists-E_{dc_id}.pkl'
-[_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
+# fname = f'posterior-dists-E_{dc_id}.pkl'
+# [_data_sel, lambda_1_samples, lambda_2_samples, tau_samples] = pickle.load(open(os.path.join('data', fname), "rb"))
 
 # Plot posterior distributions
-plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-            save_fig=False)
+# plot_posterior(num_records, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+#             save_fig=False)
 
 # Plot change point and expected energy consumption
-plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
-                    dc_name= dc_name, store_name= store_name, annotation_y_loc=9000,
-                    save_fig=False)
+# plot_change_point(data_sel, dc_id, lambda_1_samples, lambda_2_samples, tau_samples, 
+#                     dc_name= dc_name, store_name= store_name, annotation_y_loc=9000,
+#                     save_fig=False)
 
 
 
